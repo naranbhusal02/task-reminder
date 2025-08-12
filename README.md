@@ -25,21 +25,17 @@
 git clone https://github.com/your-username/your-repo-name.git
 ```
 
+### 2️⃣ Navigate to the project directory
 ```bash
 cd your-repo-name
 ```
 
-###2️⃣ Navigate to the project directory
-```bash
-cd your-repo-name
-```
-
-###3️⃣ Install dependencies
+### 3️⃣ Install dependencies
 ```bash
 npm install
 ```
 
-###4️⃣ Start the development server
+###  4️⃣ Start the development server
 ```bash
 npm run dev
 ```
