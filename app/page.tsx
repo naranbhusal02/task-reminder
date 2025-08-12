@@ -109,6 +109,7 @@ export default function TaskReminderApp() {
   const defaultAlarmRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const youtubeIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Journal state
   const [journalText, setJournalText] = useState("");
@@ -264,12 +265,22 @@ export default function TaskReminderApp() {
         defaultAlarmRef.current.play().catch(console.error);
       }
     } else if (audioSettings.type === "url" && audioSettings.url) {
-      // Play from URL
-      if (audioRef.current) {
-        audioRef.current.src = audioSettings.url;
-        audioRef.current.volume = audioSettings.volume;
-        audioRef.current.loop = true;
-        audioRef.current.play().catch(console.error);
+      if (isYouTubeEmbed(audioSettings.url)) {
+        // Play YouTube audio in hidden iframe
+        if (youtubeIframeRef.current) {
+          youtubeIframeRef.current.src =
+            audioSettings.url + "&autoplay=1&mute=0";
+          youtubeIframeRef.current.style.display = "none";
+          youtubeIframeRef.current.allow = "autoplay";
+        }
+      } else {
+        // Play from direct audio URL
+        if (audioRef.current) {
+          audioRef.current.src = audioSettings.url;
+          audioRef.current.volume = audioSettings.volume;
+          audioRef.current.loop = true;
+          audioRef.current.play().catch(console.error);
+        }
       }
     } else if (audioSettings.type === "file" && audioSettings.file) {
       // Play uploaded file
@@ -296,6 +307,12 @@ export default function TaskReminderApp() {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+
+    // Remove YouTube iframe and stop playback
+    if (youtubeIframeRef.current) {
+      youtubeIframeRef.current.src = "about:blank";
+      youtubeIframeRef.current.allow = "";
     }
   };
 
@@ -365,6 +382,10 @@ export default function TaskReminderApp() {
 
   const closeModal = () => {
     setShowAlarmModal(false);
+    // Remove YouTube iframe
+    if (youtubeIframeRef.current) {
+      youtubeIframeRef.current.src = "about:blank";
+    }
     stopAlarm();
   };
 
@@ -400,22 +421,22 @@ export default function TaskReminderApp() {
   };
 
   const handleYouTubeUrl = (url: string) => {
-    const videoId = extractYouTubeId(url);
-    if (videoId) {
-      // Note: This is a placeholder. In a real app, you'd need a backend service
-      // to legally extract audio from YouTube videos
-      alert(
-        "YouTube integration requires a backend service. For now, please use direct audio file URLs or upload audio files."
-      );
-    } else {
-      // Assume it's a direct audio URL
-      setAudioSettings((prev) => ({
-        ...prev,
-        type: "url",
-        url: url,
-      }));
-    }
+    // Show popup that this feature is under construction
+    alert(
+      "Audio URL/YouTube alarm feature is still under construction and will be added soon."
+    );
+    // Optionally, reset audioSettings to default
+    setAudioSettings((prev) => ({
+      ...prev,
+      type: "default",
+      url: "",
+      file: null,
+    }));
   };
+
+  // Helper to check if audioSettings.url is a YouTube embed
+  const isYouTubeEmbed = (url: string) =>
+    url.startsWith("https://www.youtube.com/embed/");
 
   // Test alarm sound function
   const testAlarmSound = () => {
@@ -1264,6 +1285,19 @@ export default function TaskReminderApp() {
                 </Button>
               </div>
             </div>
+
+            {/* Alarm audio playback */}
+            {audioSettings.type === "url" &&
+              isYouTubeEmbed(audioSettings.url) &&
+              showAlarmModal && (
+                <iframe
+                  ref={youtubeIframeRef}
+                  src={audioSettings.url}
+                  style={{ width: 0, height: 0, border: 0, display: "none" }}
+                  allow="autoplay"
+                  title="YouTube Audio"
+                />
+              )}
           </DialogContent>
         </Dialog>
 
@@ -1297,26 +1331,16 @@ export default function TaskReminderApp() {
               className={`relative rounded-2xl shadow-2xl w-full max-w-md mx-auto p-7 transition-colors duration-300
               ${
                 darkMode
-                  ? "bg-gradient-to-br from-gray-900/90 via-gray-800/80 to-gray-900/80 border border-gray-700 text-white"
+                  ? "bg-gray-800 border border-gray-700 text-white"
                   : "bg-white border border-gray-200 text-gray-900"
               }`}
               onClick={(e) => e.stopPropagation()}
-              style={
-                darkMode
-                  ? {
-                      boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(30, 41, 59, 0.85)",
-                      backdropFilter: "blur(8px)",
-                    }
-                  : {}
-              }
             >
               <button
                 className={`absolute top-3 right-3 rounded-full p-1 transition-colors duration-200
                 ${
                   darkMode
-                    ? "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                    ? "bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600"
                     : "bg-gray-100 text-gray-400 hover:text-gray-700 hover:bg-gray-200"
                 }`}
                 onClick={() => setShowJournal(false)}
@@ -1474,3 +1498,21 @@ export default function TaskReminderApp() {
     </div>
   );
 }
+
+/*               9999               99        9999999         
+               99  99             99        99    99999        
+               99   99            99        99        99999   
+               99    99           99        99            99999
+               99     99          99        99                99999
+               99      99         99        99                   99999
+               99       99        99        99                99999
+               99        99       99        99            9999
+               99         99      99        99        99999
+               99          99     99        99        99999
+               99           99    99        99             999999 
+               99            99   99        99                 99999
+               99             99  99        99             99999
+               99              99 99        99        99999
+               99               9999        99    99999
+               99               9999        9999999 
+*/
