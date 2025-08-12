@@ -47,8 +47,7 @@ interface AudioSettings {
   volume: number;
 }
 
-const JOURNAL_WS_URL = "ws://localhost:8080"; // Change to your backend WebSocket URL
-
+const JOURNAL_WS_URL = "ws://localhost:8080"; 
 function useJournalWebSocket(
   onEntries: (entries: { id: string; text: string; date: string }[]) => void
 ) {
@@ -590,9 +589,10 @@ export default function TaskReminderApp() {
                   darkMode ? "text-slate-300" : "text-gray-600"
                 }`}
               >
-                A focused productivity tool that helps you manage time
-                effectively with customizable alarms and countdown timers. Set
-                your task, choose your time, and stay on track.
+                Smart Task Reminder is a web based application
+                built for reality by a teen Narayan Bhusal
+                to increase producitivity by providing feature like
+                task reminders and journal writing.
               </p>
             </div>
 
@@ -619,19 +619,19 @@ export default function TaskReminderApp() {
               <div className="flex items-center justify-center gap-4 text-lg">
                 <Zap className="h-6 w-6 text-amber-500 glow-amber" />
                 <span className="subtle-glow">
-                  Quick setup with preset time options
+                  Easy time period setup
                 </span>
               </div>
               <div className="flex items-center justify-center gap-4 text-lg">
                 <Music className="h-6 w-6 text-amber-500 glow-amber" />
                 <span className="subtle-glow">
-                  Custom alarm sounds and YouTube integration
+                  Choose custom alarm sounds default, youtube audio as well as uploading own audio
                 </span>
               </div>
               <div className="flex items-center justify-center gap-4 text-lg">
                 <Bell className="h-6 w-6 text-amber-500 glow-amber" />
                 <span className="subtle-glow">
-                  Unmissable notifications with snooze options
+                  Uningnorable alarm to remind user of the task
                 </span>
               </div>
             </div>
@@ -643,7 +643,7 @@ export default function TaskReminderApp() {
               }`}
             >
               <p className="subtle-glow">
-                Built for developers, designers, and anyone who values focused
+                Built for anyone who values focused
                 work sessions.
               </p>
             </div>
