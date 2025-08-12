@@ -28,6 +28,7 @@ import {
   Home,
   Zap,
   Bell,
+  BookText,
 } from "lucide-react";
 
 interface TimerState {
@@ -44,6 +45,40 @@ interface AudioSettings {
   url: string;
   file: File | null;
   volume: number;
+}
+
+const JOURNAL_WS_URL = "ws://localhost:8080"; // Change to your backend WebSocket URL
+
+function useJournalWebSocket(
+  onEntries: (entries: { id: string; text: string; date: string }[]) => void
+) {
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    wsRef.current = new window.WebSocket(JOURNAL_WS_URL);
+    wsRef.current.onopen = () => {
+      wsRef.current?.send(JSON.stringify({ type: "get_journal" }));
+    };
+    wsRef.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "journal_entries") {
+          onEntries(data.entries);
+        } else if (data.type === "journal_entry") {
+          onEntries([data.entry]); // Add single entry
+        }
+      } catch {}
+    };
+    return () => {
+      wsRef.current?.close();
+    };
+  }, [onEntries]);
+
+  const sendEntry = (entry: { id: string; text: string; date: string }) => {
+    wsRef.current?.send(JSON.stringify({ type: "journal_entry", entry }));
+  };
+
+  return sendEntry;
 }
 
 export default function TaskReminderApp() {
@@ -74,6 +109,58 @@ export default function TaskReminderApp() {
   const defaultAlarmRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Journal state
+  const [journalText, setJournalText] = useState("");
+  const [journalEntries, setJournalEntries] = useState<
+    { id: string; text: string; date: string }[]
+  >([]);
+  const [showJournal, setShowJournal] = useState(false);
+
+  // Load journal entries from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("journalEntries");
+    if (saved) {
+      try {
+        setJournalEntries(JSON.parse(saved));
+      } catch {}
+    }
+  }, []);
+
+  // Save journal entries to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("journalEntries", JSON.stringify(journalEntries));
+  }, [journalEntries]);
+
+  // Save journal entry
+  const handleSaveJournal = () => {
+    if (!journalText.trim()) return;
+    const entry = {
+      id: Math.random().toString(36).slice(2),
+      text: journalText,
+      date: new Date().toISOString(),
+    };
+    setJournalEntries((prev) => [entry, ...prev]);
+    setJournalText("");
+  };
+
+  // Delete journal entry
+  const handleDeleteJournal = (id: string) => {
+    setJournalEntries((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
+  // WebSocket integration
+  const addEntriesFromWS = (
+    entries: { id: string; text: string; date: string }[]
+  ) => {
+    setJournalEntries((prev) => {
+      // If it's a full list, replace; if single, add
+      if (entries.length > 1) return entries;
+      if (entries.length === 1) return [entries[0], ...prev];
+      return prev;
+    });
+  };
+  const sendJournalEntry = useJournalWebSocket(addEntriesFromWS);
 
   // Preset time options in minutes
   const timePresets = [
@@ -1028,6 +1115,101 @@ export default function TaskReminderApp() {
           </CardContent>
         </Card>
 
+        {/* Journal Section */}
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Journal</h2>
+            <textarea
+              value={journalText}
+              onChange={(e) => setJournalText(e.target.value)}
+              rows={4}
+              className="w-full p-2 border rounded mb-2"
+              placeholder="Write your thoughts..."
+            />
+            <Button onClick={handleSaveJournal} className="mb-4">
+              Save Entry
+            </Button>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {journalEntries.length === 0 ? (
+                <p
+                  className={`text-sm ${
+                    darkMode ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  No journal entries yet.
+                </p>
+              ) : (
+                <div className="relative pl-4">
+                  {/* Timeline vertical line */}
+                  <div
+                    className={`absolute left-2 top-0 bottom-0 w-0.5 ${
+                      darkMode ? "bg-blue-900" : "bg-blue-200"
+                    }`}
+                  ></div>
+                  {journalEntries.map((entry, idx) => (
+                    <div
+                      key={entry.id}
+                      className={`relative flex items-start gap-3 mb-6 group`}
+                    >
+                      {/* Timeline dot/icon */}
+                      <div className={`flex flex-col items-center z-10 pt-1`}>
+                        <span
+                          className={`w-4 h-4 rounded-full flex items-center justify-center shadow-lg
+                          ${
+                            darkMode
+                              ? "bg-blue-400 text-gray-900 border-2 border-blue-500"
+                              : "bg-blue-500 text-white border-2 border-blue-300"
+                          }`}
+                        >
+                          <BookText className="h-3 w-3" />
+                        </span>
+                        {idx < journalEntries.length - 1 && (
+                          <span
+                            className={`flex-1 w-0.5 ${
+                              darkMode ? "bg-blue-900" : "bg-blue-200"
+                            }`}
+                          ></span>
+                        )}
+                      </div>
+                      <div
+                        className={`flex-1 p-4 rounded-xl border shadow-sm transition-colors duration-200
+                        ${
+                          darkMode
+                            ? "bg-gray-900 border-gray-700"
+                            : "bg-white border-gray-200"
+                        }
+                        group-hover:ring-2 group-hover:ring-blue-400`}
+                      >
+                        <div
+                          className={`text-xs mb-2 font-mono tracking-wide ${
+                            darkMode ? "text-blue-300" : "text-blue-500"
+                          }`}
+                        >
+                          {new Date(entry.date).toLocaleString()}
+                        </div>
+                        <div className="whitespace-pre-line text-base leading-relaxed">
+                          {entry.text}
+                        </div>
+                        <button
+                          className={`mt-2 text-xs px-2 py-1 rounded transition-colors duration-200
+                            ${
+                              darkMode
+                                ? "bg-gray-800 text-red-300 hover:bg-red-900 hover:text-white"
+                                : "bg-gray-100 text-red-600 hover:bg-red-200"
+                            }`}
+                          onClick={() => handleDeleteJournal(entry.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Alarm Modal */}
         <Dialog open={showAlarmModal} onOpenChange={() => {}}>
           <DialogContent className="sm:max-w-md bg-red-50 border-red-200 animate-pulse">
@@ -1084,6 +1266,175 @@ export default function TaskReminderApp() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Floating Journal Icon */}
+        <div className="fixed top-6 right-6 z-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Open Journal"
+            onClick={() => setShowJournal(true)}
+            className={`shadow-lg ${
+              darkMode
+                ? "bg-gray-900 border border-gray-700"
+                : "bg-white/80 border border-gray-300"
+            }`}
+          >
+            <BookText
+              className={`h-5 w-5 ${
+                darkMode ? "text-blue-400" : "text-blue-600"
+              }`}
+            />
+          </Button>
+        </div>
+        {/* Journal Modal */}
+        {showJournal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowJournal(false)}
+          >
+            <div
+              className={`relative rounded-2xl shadow-2xl w-full max-w-md mx-auto p-7 transition-colors duration-300
+              ${
+                darkMode
+                  ? "bg-gradient-to-br from-gray-900/90 via-gray-800/80 to-gray-900/80 border border-gray-700 text-white"
+                  : "bg-white border border-gray-200 text-gray-900"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+              style={
+                darkMode
+                  ? {
+                      boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(30, 41, 59, 0.85)",
+                      backdropFilter: "blur(8px)",
+                    }
+                  : {}
+              }
+            >
+              <button
+                className={`absolute top-3 right-3 rounded-full p-1 transition-colors duration-200
+                ${
+                  darkMode
+                    ? "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                    : "bg-gray-100 text-gray-400 hover:text-gray-700 hover:bg-gray-200"
+                }`}
+                onClick={() => setShowJournal(false)}
+                aria-label="Close Journal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2
+                className={`text-xl font-bold mb-4 tracking-wide ${
+                  darkMode ? "text-blue-400" : "text-blue-700"
+                }`}
+              >
+                Journal
+              </h2>
+              <textarea
+                value={journalText}
+                onChange={(e) => setJournalText(e.target.value)}
+                rows={4}
+                className={`w-full p-3 rounded-lg mb-3 border focus:outline-none focus:ring-2 transition-all
+                ${
+                  darkMode
+                    ? "bg-gray-900 border-gray-700 text-white placeholder-gray-400 focus:ring-blue-400"
+                    : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:ring-blue-400"
+                }`}
+                placeholder="Write your thoughts..."
+              />
+              <Button
+                onClick={handleSaveJournal}
+                className={`mb-4 w-full font-semibold text-base py-2 rounded-lg shadow-md
+              ${
+                darkMode
+                  ? "bg-blue-600 hover:bg-blue-500 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+              >
+                Save Entry
+              </Button>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {journalEntries.length === 0 ? (
+                  <p
+                    className={`text-sm ${
+                      darkMode ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    No journal entries yet.
+                  </p>
+                ) : (
+                  <div className="relative pl-4">
+                    {/* Timeline vertical line */}
+                    <div
+                      className={`absolute left-2 top-0 bottom-0 w-0.5 ${
+                        darkMode ? "bg-blue-900" : "bg-blue-200"
+                      }`}
+                    ></div>
+                    {journalEntries.map((entry, idx) => (
+                      <div
+                        key={entry.id}
+                        className={`relative flex items-start gap-3 mb-6 group`}
+                      >
+                        {/* Timeline dot/icon */}
+                        <div className={`flex flex-col items-center z-10 pt-1`}>
+                          <span
+                            className={`w-4 h-4 rounded-full flex items-center justify-center shadow-lg
+                            ${
+                              darkMode
+                                ? "bg-blue-400 text-gray-900 border-2 border-blue-500"
+                                : "bg-blue-500 text-white border-2 border-blue-300"
+                            }`}
+                          >
+                            <BookText className="h-3 w-3" />
+                          </span>
+                          {idx < journalEntries.length - 1 && (
+                            <span
+                              className={`flex-1 w-0.5 ${
+                                darkMode ? "bg-blue-900" : "bg-blue-200"
+                              }`}
+                            ></span>
+                          )}
+                        </div>
+                        <div
+                          className={`flex-1 p-4 rounded-xl border shadow-sm transition-colors duration-200
+                          ${
+                            darkMode
+                              ? "bg-gray-900 border-gray-700"
+                              : "bg-white border-gray-200"
+                          }
+                          group-hover:ring-2 group-hover:ring-blue-400`}
+                        >
+                          <div
+                            className={`text-xs mb-2 font-mono tracking-wide ${
+                              darkMode ? "text-blue-300" : "text-blue-500"
+                            }`}
+                          >
+                            {new Date(entry.date).toLocaleString()}
+                          </div>
+                          <div className="whitespace-pre-line text-base leading-relaxed">
+                            {entry.text}
+                          </div>
+                          <button
+                            className={`mt-2 text-xs px-2 py-1 rounded transition-colors duration-200
+                              ${
+                                darkMode
+                                  ? "bg-gray-800 text-red-300 hover:bg-red-900 hover:text-white"
+                                  : "bg-gray-100 text-red-600 hover:bg-red-200"
+                              }`}
+                            onClick={() => handleDeleteJournal(entry.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Hidden audio element for custom sounds */}
         <audio ref={audioRef} preload="none" />
